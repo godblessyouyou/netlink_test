@@ -1,0 +1,6 @@
+Userspace send msg size is 4byte (read)
+Userspace send msg size is header + data(512 bytes) or header + data(36 Kb)  (write)
+Userspace recevie msg size is 1bytes, write success.
+Userspace receive msg size is header + date (512 bytes) or header + data(36 Kb), read success.
+
+http://blog.csdn.net/zcabcd123/article/details/8272656
