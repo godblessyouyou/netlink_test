@@ -95,7 +95,6 @@ void respond_msg(u32 pid, nl_msg msg) {
     printk("net_link: recv len %d.\n", msg.len);
     printk("net_link: recv %s.\n", msg.space_name);
     
-<<<<<<< HEAD
     struct sk_buff *skb = alloc_skb(NLMSG_SPACE(msg.len), GFP_ATOMIC);
     struct nlmsghdr *nlh = nlmsg_put(skb, 0, 0, 0, NLMSG_SPACE(msg.len), 0);
     NETLINK_CB(skb).creds.pid = 0;
@@ -104,15 +103,6 @@ void respond_msg(u32 pid, nl_msg msg) {
     //struct block_device *bdev = blkdev_get_by_path(msg.space_name, FMODE_WRITE|FMODE_READ, NULL);
     //do_data_read(bdev, msg.blknum, msg.offset, msg.len, read_data);
     char *read_data = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-=======
-    struct sk_buff *skb = alloc_skb(NLMSG_SPACE(MAX_PAYLOAD), GFP_ATOMIC);
-    struct nlmsghdr *nlh = nlmsg_put(skb, 0, 0, 0, MAX_PAYLOAD, 0);
-    NETLINK_CB(skb).creds.pid = 0;
-    
-    char *read_data = kmalloc(msg.len, GFP_ATOMIC);
-    struct block_device *bdev = blkdev_get_by_path(msg.space_name, FMODE_WRITE|FMODE_READ, NULL);
-    do_data_read(bdev, msg.blknum, msg.offset, msg.len, read_data);
->>>>>>> b7bde85068f16476b255da1c9e4ec74796b386d3
     strcpy(NLMSG_DATA(nlh), read_data);
     
     // start to send
@@ -121,15 +111,9 @@ void respond_msg(u32 pid, nl_msg msg) {
         printk(KERN_ERR "net_link: can not unicast skb (%d)\n", rc);
     }
     printk("net_link: send is ok.\n");
-<<<<<<< HEAD
     //kfree(read_data);
     //kfree_skb(skb);
     //kfree(bdev);
-=======
-    kfree(read_data);
-    kfree_skb(skb);
-    kfree(bdev);
->>>>>>> b7bde85068f16476b255da1c9e4ec74796b386d3
 }
 
 void nl_data_ready(struct sk_buff *__skb)
@@ -142,7 +126,6 @@ void nl_data_ready(struct sk_buff *__skb)
     printk("net_link: data is ready to read.\n");
 
     skb = skb_get(__skb);
-<<<<<<< HEAD
     printk("skb length is %d.\n", skb->len);
     // header is 16 bytes, nl_msg is 32bytes
     if (skb->len == NLMSG_SPACE(sizeof(nl_msg))) {
@@ -158,15 +141,6 @@ void nl_data_ready(struct sk_buff *__skb)
         printk("net_link: pid is %d\n", pid);
         kfree_skb(skb);
         //respond_msg(pid, msg);
-=======
-    if (skb->len >= NLMSG_SPACE(0)) {
-        nlh = nlmsg_hdr(skb);
-        memcpy(&msg, NLMSG_DATA(nlh), sizeof(msg));
-        pid = nlh->nlmsg_pid; /*pid of sending process */
-        printk("net_link: pid is %d\n", pid);
-        kfree_skb(skb);
-        respond_msg(pid, msg);
->>>>>>> b7bde85068f16476b255da1c9e4ec74796b386d3
     }
     return;
 }

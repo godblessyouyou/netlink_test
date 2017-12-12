@@ -45,7 +45,6 @@ static int create_socket(struct sockaddr_nl *dest_addr)
     return sock_fd;
 }
 
-<<<<<<< HEAD
 static void handle_read_message(int sock_fd, struct sockaddr_nl dest_addr, nl_msg *msg_data)
 {
     struct msghdr msg;
@@ -61,19 +60,6 @@ static void handle_read_message(int sock_fd, struct sockaddr_nl dest_addr, nl_ms
     printf("the data area is %d.\n", msg_data->len + sizeof(nl_msg));
     // do not init the data area
     // memcpy(NLMSG_DATA(nlh), msg_data, sizeof(nl_msg));
-=======
-static void handle_message(int sock_fd, struct sockaddr_nl dest_addr, nl_msg *msg_data)
-{
-    struct msghdr msg;
-    struct iovec iov;
-    struct nlmsghdr *nlh=(struct nlmsghdr *)malloc(NLMSG_SPACE(MAX_PAYLOAD));
-    
-    /* Fill the netlink message header */
-    nlh->nlmsg_len = NLMSG_SPACE(MAX_PAYLOAD); // the message len may be 512 or 36 * 1024
-    nlh->nlmsg_pid = getpid(); /* self pid */
-    nlh->nlmsg_flags = 0;
-    memcpy(NLMSG_DATA(nlh), msg_data, sizeof(nl_msg));
->>>>>>> b7bde85068f16476b255da1c9e4ec74796b386d3
 
     iov.iov_base = (void *)nlh;
     iov.iov_len = nlh->nlmsg_len;
@@ -88,7 +74,6 @@ static void handle_message(int sock_fd, struct sockaddr_nl dest_addr, nl_msg *ms
     sendmsg(sock_fd, &msg, 0);
     
     // receive message
-<<<<<<< HEAD
     memset(nlh, 0, NLMSG_SPACE(msg_data->len));
     recvmsg(sock_fd, &msg, 0);
     printf("received message is: %s\n", NLMSG_DATA(nlh));
@@ -123,21 +108,11 @@ static void handle_write_message(int sock_fd, struct sockaddr_nl dest_addr, nl_m
     
     // receive message
     memset(nlh, 0, NLMSG_SPACE(sizeof(nl_msg)));
-=======
-    memset(nlh, 0, NLMSG_SPACE(MAX_PAYLOAD));
->>>>>>> b7bde85068f16476b255da1c9e4ec74796b386d3
     recvmsg(sock_fd, &msg, 0);
     printf("received message is: %s\n", NLMSG_DATA(nlh));
 }
 
 
-<<<<<<< HEAD
-=======
-/* read net link message length is
- *
- *
- */
->>>>>>> b7bde85068f16476b255da1c9e4ec74796b386d3
 static int read_lockspace(unsigned long int blknum, unsigned int offset, 
                             unsigned int len, char *uuid, void *buff)
 {
@@ -152,11 +127,7 @@ static int read_lockspace(unsigned long int blknum, unsigned int offset,
 
     // start to send the msg and receive msg
     sock_fd = create_socket(&dest_addr);
-<<<<<<< HEAD
     handle_read_message(sock_fd, dest_addr, &msg);
-=======
-    handle_message(sock_fd, dest_addr, &msg);
->>>>>>> b7bde85068f16476b255da1c9e4ec74796b386d3
     close(sock_fd);
 }
 
@@ -168,10 +139,6 @@ static int read_lockspace(unsigned long int blknum, unsigned int offset,
 */
 int main(int argc, char* argv[])
 {
-<<<<<<< HEAD
     int ret = read_lockspace(0, 1, 512, "/dev/sdb", "hello_world..");
-=======
-    int ret = read_lockspace(0, 1, 20, "/dev/sdb", "hello_world..");
->>>>>>> b7bde85068f16476b255da1c9e4ec74796b386d3
     return ret;
 }
