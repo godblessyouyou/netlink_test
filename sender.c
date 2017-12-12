@@ -19,6 +19,7 @@ typedef struct sanlock_read_message {
     unsigned int blknum;
     unsigned int offset;
     unsigned int len;
+    unsigned char operation;
     char space_name[MAX_SPACE_NAME_LEN];
     char buff[0];
 }nl_msg;
@@ -49,23 +50,20 @@ static void handle_read_message(int sock_fd, struct sockaddr_nl dest_addr, nl_ms
 {
     struct msghdr msg;
     struct iovec iov;
-    // here, according to the message length, define the nlh space
-    struct nlmsghdr *nlh=(struct nlmsghdr *)malloc(NLMSG_SPACE(msg_data->len));
+    struct nlmsghdr *nlh=(struct nlmsghdr *)malloc(NLMSG_SPACE(MAX_MSG_LEN));
     
     /* Fill the netlink message header */
-    nlh->nlmsg_len = NLMSG_SPACE(sizeof(nl_msg)); // 32 bytes
+    nlh->nlmsg_len = NLMSG_SPACE(MAX_MSG_LEN); 
     nlh->nlmsg_pid = getpid(); /* self pid */
     nlh->nlmsg_flags = 0;
-    printf("the msg data len is %d.\n", msg_data->len);
-    printf("the data area is %d.\n", msg_data->len + sizeof(nl_msg));
     // do not init the data area
-    // memcpy(NLMSG_DATA(nlh), msg_data, sizeof(nl_msg));
+    memcpy(NLMSG_DATA(nlh), msg_data, sizeof(nl_msg));
 
     iov.iov_base = (void *)nlh;
     iov.iov_len = nlh->nlmsg_len;
 
     // fill the message
-    memset(&msg, 0, sizeof(msg));    
+    memset(&msg, 0, sizeof(struct msghdr));    
     msg.msg_name = (void *)&dest_addr;
     msg.msg_namelen = sizeof(dest_addr);
     msg.msg_iov = &iov;
@@ -74,7 +72,7 @@ static void handle_read_message(int sock_fd, struct sockaddr_nl dest_addr, nl_ms
     sendmsg(sock_fd, &msg, 0);
     
     // receive message
-    memset(nlh, 0, NLMSG_SPACE(msg_data->len));
+    memset(nlh, 0, NLMSG_SPACE(MAX_MSG_LEN));
     recvmsg(sock_fd, &msg, 0);
     printf("received message is: %s\n", NLMSG_DATA(nlh));
 }
@@ -84,11 +82,10 @@ static void handle_write_message(int sock_fd, struct sockaddr_nl dest_addr, nl_m
 {
     struct msghdr msg;
     struct iovec iov;
-    // here, according to the message length, define the nlh space
-    struct nlmsghdr *nlh=(struct nlmsghdr *)malloc(NLMSG_SPACE(msg_data->len));
+    struct nlmsghdr *nlh=(struct nlmsghdr *)malloc(NLMSG_SPACE(MAX_MSG_LEN));
     
     /* Fill the netlink message header */
-    nlh->nlmsg_len = NLMSG_SPACE(sizeof(nl_msg)); 
+    nlh->nlmsg_len = NLMSG_SPACE(MAX_MSG_LEN);
     nlh->nlmsg_pid = getpid(); /* self pid */
     nlh->nlmsg_flags = 0;
     // msg_data content, 32bytes + content
@@ -107,14 +104,14 @@ static void handle_write_message(int sock_fd, struct sockaddr_nl dest_addr, nl_m
     sendmsg(sock_fd, &msg, 0);
     
     // receive message
-    memset(nlh, 0, NLMSG_SPACE(sizeof(nl_msg)));
+    memset(nlh, 0, NLMSG_SPACE(MAX_MSG_LEN));
     recvmsg(sock_fd, &msg, 0);
     printf("received message is: %s\n", NLMSG_DATA(nlh));
 }
 
 
-static int read_lockspace(unsigned long int blknum, unsigned int offset, 
-                            unsigned int len, char *uuid, void *buff)
+static void fill_msg(unsigned long int blknum, unsigned int offset,
+                     unsigned int len, char *uuid, void *buff, int flag)
 {
     int fd;
     struct sockaddr_nl dest_addr;
@@ -123,13 +120,30 @@ static int read_lockspace(unsigned long int blknum, unsigned int offset,
     msg.blknum = blknum;
     msg.len = len;
     msg.offset = offset;
+    msg.operation = flag; // read is 0, write is 1
     strcpy(msg.space_name, uuid);
+    if (flag) {
+        strcpy(msg.buff, buff);
+    }
 
     // start to send the msg and receive msg
     sock_fd = create_socket(&dest_addr);
-    handle_read_message(sock_fd, dest_addr, &msg);
+    flag ? handle_write_message(sock_fd, dest_addr, &msg) : handle_read_message(sock_fd, dest_addr, &msg);
     close(sock_fd);
 }
+
+static int read_lock_space(unsigned long int blknum, unsigned int offset, 
+                            unsigned int len, char *uuid, void *buff)
+{
+    fill_msg(blknum, offset, len, uuid, buff, 0);
+}
+
+static int write_lock_space(unsigned long int blknum, unsigned int offset,
+                            unsigned int len, char *uuid, void *buff)
+{
+    fill_msg(blknum, offset, len, uuid, buff, 1);
+}
+
 
 /*
     write_lockspace or read_lockspace.
@@ -139,6 +153,7 @@ static int read_lockspace(unsigned long int blknum, unsigned int offset,
 */
 int main(int argc, char* argv[])
 {
-    int ret = read_lockspace(0, 1, 512, "/dev/sdb", "hello_world..");
+    int ret = read_lock_space(0, 1, 512, "/dev/sdb", "hello_world..");
+    int b = write_lock_space(0, 1, 512, "/dev/sdb", "hello_world..");
     return ret;
 }

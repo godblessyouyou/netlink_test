@@ -10,6 +10,7 @@
 
 #define NETLINK_TEST 21
 #define MAX_SPACE_NAME_LEN 20
+#define MAX_MSG_LEN 36864
 #define MAX_PAYLOAD 81920
 #define IO_LEN 4096
 
@@ -20,6 +21,7 @@ typedef struct sanlock_read_message {
     unsigned int blknum;
     unsigned int offset;
     unsigned int len;
+    unsigned char operation;
     char space_name[MAX_SPACE_NAME_LEN];
     char buff[0];
 }nl_msg;
@@ -61,8 +63,8 @@ static int lock_area_block_io(struct block_device *bdev, uint64_t blknum, unsign
     return ret;
 }
 
-static ssize_t do_data_read(struct block_device *bdev, uint64_t blknum, unsigned int offset,
-			    unsigned int length, char *read_data) 
+static ssize_t data_process(struct block_device *bdev, uint64_t blknum, unsigned int offset,
+			    unsigned int length, char *read_data, int flags) 
 {
     ssize_t pos = 0;
     struct page *tmp_data = NULL;
@@ -89,31 +91,42 @@ static ssize_t do_data_read(struct block_device *bdev, uint64_t blknum, unsigned
     return pos;
 } 
 
-void respond_msg(u32 pid, nl_msg msg) {
-    printk("net_link: recv blknum %d.\n", msg.blknum);
-    printk("net_link: recv offset %d.\n", msg.offset);
-    printk("net_link: recv len %d.\n", msg.len);
-    printk("net_link: recv %s.\n", msg.space_name);
-    
-    struct sk_buff *skb = alloc_skb(NLMSG_SPACE(msg.len), GFP_ATOMIC);
-    struct nlmsghdr *nlh = nlmsg_put(skb, 0, 0, 0, NLMSG_SPACE(msg.len), 0);
+void respond_msg(u32 pid, nl_msg *msg) {
+    struct sk_buff *skb = alloc_skb(NLMSG_SPACE(msg->len), GFP_ATOMIC);
+    struct nlmsghdr *nlh = nlmsg_put(skb, 0, 0, 0, NLMSG_SPACE(msg->len), 0);
     NETLINK_CB(skb).creds.pid = 0;
+    int rc = 0;
+
+    // check the operation, read or write.
+    if (!msg->operation) {
+        //char *read_data = kmalloc(msg.len, GFP_ATOMIC);
+        //struct block_device *bdev = blkdev_get_by_path(msg.space_name, FMODE_WRITE|FMODE_READ, NULL);
+        //data_process(bdev, msg.blknum, msg.offset, msg.len, read_data, 0);
+        char *read_data = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        strcpy(NLMSG_DATA(nlh), read_data);
     
-    //char *read_data = kmalloc(msg.len, GFP_ATOMIC);
+        // start to send
+        rc = netlink_unicast(nl_sk, skb, pid, MSG_DONTWAIT);
+        if (rc < 0) {
+            printk(KERN_ERR "net_link: can not unicast skb (%d)\n", rc);
+        }
+        printk("net_link: send is ok.\n");
+        //kfree(bdev);
+        return;
+    }
     //struct block_device *bdev = blkdev_get_by_path(msg.space_name, FMODE_WRITE|FMODE_READ, NULL);
-    //do_data_read(bdev, msg.blknum, msg.offset, msg.len, read_data);
-    char *read_data = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    strcpy(NLMSG_DATA(nlh), read_data);
-    
+    //data_process(bdev, msg.blknum, msg.offset, msg.len, read_data, 1);
     // start to send
-    int rc = netlink_unicast(nl_sk, skb, pid, MSG_DONTWAIT);
+
+    char *write_recv = msg->buff;
+    strcpy(NLMSG_DATA(nlh), write_recv);
+    rc = netlink_unicast(nl_sk, skb, pid, MSG_DONTWAIT);
     if (rc < 0) {
         printk(KERN_ERR "net_link: can not unicast skb (%d)\n", rc);
     }
     printk("net_link: send is ok.\n");
-    //kfree(read_data);
-    //kfree_skb(skb);
     //kfree(bdev);
+    return;
 }
 
 void nl_data_ready(struct sk_buff *__skb)
@@ -121,26 +134,21 @@ void nl_data_ready(struct sk_buff *__skb)
     struct sk_buff *skb;
     struct nlmsghdr *nlh;
     u32 pid;
-    nl_msg msg;
-    memset(&msg, 0, sizeof(msg));
+    nl_msg *msg;
     printk("net_link: data is ready to read.\n");
 
     skb = skb_get(__skb);
     printk("skb length is %d.\n", skb->len);
-    // header is 16 bytes, nl_msg is 32bytes
-    if (skb->len == NLMSG_SPACE(sizeof(nl_msg))) {
+    // header is 16 bytes, nl_msg is 32 bytes
+    if (skb->len >= NLMSG_SPACE(sizeof(nl_msg))) {
+        // the size may be 512 or 36 * 1024
+        msg = kmalloc(sizeof(nl_msg) + MAX_MSG_LEN, GFP_KERNEL);
         nlh = nlmsg_hdr(skb);
-        // nlh header is 16 bytes
-        memcpy(&msg, NLMSG_DATA(nlh), sizeof(nl_msg));
-        printk("net_link: recv blknum %d.\n", msg.blknum);
-        printk("net_link: recv offset %d.\n", msg.offset);
-        printk("net_link: recv len %d.\n", msg.len);
-        printk("net_link: recv %s.\n", msg.space_name);
-        
+        memcpy(msg, NLMSG_DATA(nlh), MAX_MSG_LEN + sizeof(nl_msg));
         pid = nlh->nlmsg_pid; /*pid of sending process */
         printk("net_link: pid is %d\n", pid);
         kfree_skb(skb);
-        //respond_msg(pid, msg);
+        respond_msg(pid, msg);
     }
     return;
 }
